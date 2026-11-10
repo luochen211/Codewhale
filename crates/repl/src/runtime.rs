@@ -1171,9 +1171,12 @@ fn truncate_stdout(stdout: &str, limit: usize) -> String {
     if stdout.len() <= limit {
         return stdout.to_string();
     }
-    let take = limit.saturating_sub(80);
-    let mut out: String = stdout.chars().take(take).collect();
-    let omitted = stdout.len().saturating_sub(out.len());
+    let cut = (0..=limit.saturating_sub(80))
+        .rev()
+        .find(|&index| stdout.is_char_boundary(index))
+        .unwrap_or(0);
+    let mut out = stdout[..cut].to_string();
+    let omitted = stdout.len() - cut;
     out.push_str(&format!(
         "\n\n[... REPL output truncated: {omitted} bytes omitted ...]\n"
     ));
@@ -1787,5 +1790,21 @@ mod tests {
         let out = truncate_stdout(&long, 1024);
         assert!(out.len() < 1500);
         assert!(out.contains("truncated"));
+    }
+
+    #[test]
+    fn truncate_caps_multibyte_output_by_bytes() {
+        let cjk = "中".repeat(3000);
+        let out = truncate_stdout(&cjk, 1024);
+        assert!(out.len() <= 1024 + 80, "kept {} bytes", out.len());
+        assert!(!out.contains(" 0 bytes omitted"));
+
+        let kept = out.split("\n\n[...").next().unwrap();
+        let omitted = cjk.len() - kept.len();
+        assert!(out.contains(&format!("{omitted} bytes omitted")));
+
+        let default = truncate_stdout(&cjk, DEFAULT_STDOUT_LIMIT);
+        assert!(default.len() <= DEFAULT_STDOUT_LIMIT + 80);
+        assert!(!default.contains(" 0 bytes omitted"));
     }
 }
