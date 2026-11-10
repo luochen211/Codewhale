@@ -54,10 +54,8 @@ pub fn format_context_window(tokens: u64) -> String {
         if tokens.is_multiple_of(1_000_000) {
             format!("{}M", tokens / 1_000_000)
         } else {
-            format!("{:.2}M", tokens as f64 / 1_000_000.0)
-                .trim_end_matches('0')
-                .trim_end_matches('.')
-                .to_string()
+            let millions = format!("{:.2}", tokens as f64 / 1_000_000.0);
+            format!("{}M", millions.trim_end_matches('0').trim_end_matches('.'))
         }
     } else if tokens >= 1_000 {
         format!("{}K", tokens / 1_000)
@@ -1021,7 +1019,7 @@ pub fn estimate_message_chars(messages: &[Message]) -> usize {
 // without additional platform scaffolding.
 #[cfg(test)]
 mod tests {
-    use super::{display_path_with_home, redacted_identifier_for_log};
+    use super::{display_path_with_home, format_context_window, redacted_identifier_for_log};
     use std::path::PathBuf;
 
     fn home(s: &str) -> Option<PathBuf> {
@@ -1038,6 +1036,15 @@ mod tests {
         assert!(!redacted.contains(identifier));
         assert_eq!(redacted, redacted_identifier_for_log(identifier));
         assert_ne!(redacted, redacted_identifier_for_log("another-session"));
+    }
+
+    #[test]
+    fn format_context_window_trims_trailing_zeros() {
+        assert_eq!(format_context_window(1_500_000), "1.5M");
+        assert_eq!(format_context_window(2_097_152), "2.1M");
+        assert_eq!(format_context_window(1_000_500), "1M");
+        assert_eq!(format_context_window(1_000_000), "1M");
+        assert_eq!(format_context_window(128_000), "128K");
     }
 
     #[test]
